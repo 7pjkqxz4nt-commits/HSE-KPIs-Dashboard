@@ -1,6 +1,6 @@
 import pandas as pd
 import streamlit as st
-import matplotlib.pyplot as plt
+import plotly.express as px
 
 # ==============================
 # LOAD DATA
@@ -74,19 +74,20 @@ filtered_df = df[
 st.subheader("📊 Key Metrics")
 
 total_fatalities = len(filtered_df)
-trend = filtered_df.groupby("Year").size()
+trend = filtered_df.groupby("Year").size().reset_index(name="Fatalities")
 
-avg_per_year = int(trend.mean()) if len(trend) > 0 else 0
+avg_per_year = int(trend["Fatalities"].mean()) if len(trend) > 0 else 0
 
 if len(trend) > 0:
-    max_year = trend.idxmax()
-    max_value = trend.max()
+    max_row = trend.loc[trend["Fatalities"].idxmax()]
+    max_year = max_row["Year"]
+    max_value = max_row["Fatalities"]
 else:
-    max_year = "N/A"
-    max_value = 0
+    max_year, max_value = "N/A", 0
 
 if len(trend) > 1:
-    percent_change = ((trend.iloc[-1] - trend.iloc[0]) / trend.iloc[0]) * 100
+    percent_change = ((trend["Fatalities"].iloc[-1] - trend["Fatalities"].iloc[0]) /
+                      trend["Fatalities"].iloc[0]) * 100
 else:
     percent_change = 0
 
@@ -97,84 +98,67 @@ col2.metric("Avg per Year", avg_per_year)
 col3.metric("Highest Year", f"{max_year} ({max_value})")
 
 if percent_change > 0:
-    col4.metric("Trend %", f"{percent_change:.1f}%", "🔺 Increasing")
+    col4.metric("Trend %", f"{percent_change:.1f}%", "Increasing")
 else:
-    col4.metric("Trend %", f"{percent_change:.1f}%", "🔻 Decreasing")
+    col4.metric("Trend %", f"{percent_change:.1f}%", "Decreasing")
 
 # ==============================
 # DATA PREVIEW
 # ==============================
 st.subheader("📊 Filtered Data")
-st.write(filtered_df.head())
+st.dataframe(filtered_df)
 
 # ==============================
 # CHART 1 — TREND
 # ==============================
 st.subheader("📈 Fatalities Trend")
 
-fig1, ax1 = plt.subplots()
-trend.plot(marker='o', ax=ax1)
-ax1.set_xlabel("Year")
-ax1.set_ylabel("Fatalities")
-ax1.grid()
-
-st.pyplot(fig1)
+fig1 = px.line(trend, x="Year", y="Fatalities", markers=True)
+st.plotly_chart(fig1, use_container_width=True)
 
 # ==============================
 # CHART 2 — AUTHORITY
 # ==============================
 st.subheader("🏢 Authority Distribution")
 
-auth = filtered_df["Enforcing authority [Note 3]"].value_counts()
+auth = filtered_df["Enforcing authority [Note 3]"].value_counts().reset_index()
+auth.columns = ["Authority", "Count"]
 
-fig2, ax2 = plt.subplots()
-auth.plot(kind='bar', ax=ax2)
-ax2.set_xlabel("Authority")
-ax2.set_ylabel("Count")
-
-st.pyplot(fig2)
+fig2 = px.bar(auth, x="Authority", y="Count")
+st.plotly_chart(fig2, use_container_width=True)
 
 # ==============================
 # CHART 3 — REGION
 # ==============================
 st.subheader("🌍 Top Risk Regions")
 
-region = filtered_df["Region"].value_counts().head(10)
+region = filtered_df["Region"].value_counts().head(10).reset_index()
+region.columns = ["Region", "Fatalities"]
 
-fig3, ax3 = plt.subplots()
-region.plot(kind='bar', ax=ax3)
-ax3.set_xlabel("Region")
-ax3.set_ylabel("Fatalities")
-
-st.pyplot(fig3)
+fig3 = px.bar(region, x="Region", y="Fatalities")
+st.plotly_chart(fig3, use_container_width=True)
 
 # ==============================
 # CHART 4 — INDUSTRY
 # ==============================
-st.subheader("🏭 Top Industries by Fatalities")
+st.subheader("🏭 Top Industries")
 
-industry_counts = filtered_df["Industry"].value_counts().head(10)
+industry_counts = filtered_df["Industry"].value_counts().head(10).reset_index()
+industry_counts.columns = ["Industry", "Fatalities"]
 
-fig4, ax4 = plt.subplots()
-industry_counts.plot(kind='bar', ax=ax4)
-ax4.set_xlabel("Industry")
-ax4.set_ylabel("Fatalities")
-
-st.pyplot(fig4)
+fig4 = px.bar(industry_counts, x="Industry", y="Fatalities")
+st.plotly_chart(fig4, use_container_width=True)
 
 # ==============================
 # CHART 5 — ACCIDENT TYPE
 # ==============================
-st.subheader("⚠️ Fatalities by Accident Type")
+st.subheader("⚠️ Accident Types")
 
-accident_counts = filtered_df["Kind of accident"].value_counts().head(10)
+accident_counts = filtered_df["Kind of accident"].value_counts().head(10).reset_index()
+accident_counts.columns = ["Accident", "Fatalities"]
 
-fig5, ax5 = plt.subplots()
-accident_counts.plot(kind='bar', ax=ax5)
-ax5.set_xlabel("Accident Type")
-ax5.set_ylabel("Fatalities")
-
-st.pyplot(fig5)
+fig5 = px.bar(accident_counts, x="Accident", y="Fatalities")
+st.plotly_chart(fig5, use_container_width=True)
 
 # ==============================
 # AI INSIGHTS
@@ -182,47 +166,20 @@ st.pyplot(fig5)
 st.subheader("🤖 AI Insights")
 
 if len(trend) > 1:
-    values = trend.values
-    years_list = trend.index.tolist()
-
-    max_value = values.max()
-    max_year = years_list[values.argmax()]
-
-    percent_change = ((values[-1] - values[0]) / values[0]) * 100
-
     st.write(f"⚠️ Highest fatalities: {max_value} in {max_year}")
     st.write(f"📊 Change: {percent_change:.2f}%")
 
     if percent_change > 0:
         st.error("🚨 Increasing trend — Action required!")
     else:
-        st.success("✅ Improving trend — Keep monitoring")
+        st.success("✅ Improving trend")
 
 # ==============================
-# AI INSIGHT — INDUSTRY
+# MAP
 # ==============================
-if len(industry_counts) > 0:
-    top_industry = industry_counts.index[0]
-    top_value = industry_counts.iloc[0]
+st.subheader("🗺️ Map")
 
-    st.error(f"🚨 Highest risk industry: {top_industry} ({top_value} fatalities)")
-
-# ==============================
-# AI INSIGHT — ACCIDENT
-# ==============================
-if len(accident_counts) > 0:
-    top_accident = accident_counts.index[0]
-    top_value = accident_counts.iloc[0]
-
-    st.error(f"🚨 Most dangerous accident type: {top_accident} ({top_value} fatalities)")
-
-# ==============================
-# MAP VISUALIZATION
-# ==============================
-st.subheader("🗺️ Fatalities Map (Region-based)")
-
-map_data = filtered_df["Region"].value_counts().reset_index()
-map_data.columns = ["Region", "Fatalities"]
+map_data = region.copy()
 
 region_coords = {
     "London": [51.5074, -0.1278],
